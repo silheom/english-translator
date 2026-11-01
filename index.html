@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>영어 문장별 번역기</title><script src="https://cdn.tailwindcss.com"></script>
+<style>body{background:#0b1020;color:#e5e7eb}.panel{background:#111827;border:1px solid #334155}progress{width:100%;height:10px;accent-color:#818cf8}button:disabled{opacity:.45}</style></head>
+<body class="min-h-screen"><main class="max-w-6xl mx-auto p-4 sm:p-6">
+<header class="mb-6"><h1 class="text-2xl font-bold">영어 문장별 번역기</h1><p class="text-sm text-slate-400 mt-1">GitHub에 올린 로컬 AI 모델 사용</p></header>
+<div class="grid lg:grid-cols-2 gap-4">
+<section class="panel rounded-2xl p-4"><div class="flex justify-between mb-3"><h2 class="font-semibold">영어 원문</h2><label class="text-xs border rounded-lg px-3 py-2 cursor-pointer">TXT 열기<input id="file" type="file" accept=".txt" hidden></label></div>
+<textarea id="input" class="w-full h-72 bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm" placeholder="영어 텍스트를 붙여넣으세요."></textarea>
+<div class="text-xs text-slate-500 mt-2 flex justify-between"><span id="chars">0자</span><button id="clear">지우기</button></div>
+<div class="mt-5 border-t border-slate-700 pt-4"><h2 class="font-semibold mb-3">처리 설정</h2><label class="text-xs text-slate-400">한 번에 처리할 문장 수</label>
+<select id="batch" class="block w-full mt-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm"><option>1</option><option selected>3</option><option>5</option></select>
+<p class="text-xs text-slate-400 mt-3 leading-5">로컬 모델 경로: <code>models/Xenova/nllb-200-distilled-600M/</code><br>모델 파일이 없으면 원격에서 자동 다운로드하지 않습니다.</p></div>
+<div class="flex gap-2 mt-5"><button id="start" class="flex-1 bg-indigo-500 rounded-xl p-3 font-semibold">번역 시작</button><button id="pause" disabled class="border rounded-xl px-3">일시정지</button><button id="stop" disabled class="border border-rose-500 text-rose-300 rounded-xl px-3">중단</button></div></section>
+<section class="panel rounded-2xl p-4"><div class="flex justify-between items-center gap-2"><h2 class="font-semibold">번역 결과</h2><div class="flex gap-2"><button id="copy" disabled class="border rounded-lg px-3 py-2 text-xs">전체 복사</button><button id="save" disabled class="border rounded-lg px-3 py-2 text-xs">TXT 저장</button></div></div>
+<div class="bg-slate-950 rounded-xl p-3 mt-4"><div class="flex justify-between text-xs mb-2"><span id="status">대기 중</span><span id="counter">0 / 0</span></div><progress id="bar" value="0" max="100"></progress><div id="pct" class="text-xs text-slate-500 mt-2">0%</div></div>
+<div id="output" class="mt-4 h-[470px] overflow-auto whitespace-pre-wrap break-words bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm leading-7">결과가 여기에 표시됩니다.</div></section></div>
+<p class="text-xs text-slate-500 leading-5 mt-5">모델은 GitHub 저장소에서 읽습니다. Transformers.js 라이브러리와 실행용 WASM 파일은 CDN에서 불러오므로 최초 접속 시 인터넷이 필요합니다.</p></main>
+<script type="module">
+const $=id=>document.getElementById(id);let pipe=null,busy=false,paused=false,stopped=false,rows=[];
+const MODEL='Xenova/nllb-200-distilled-600M';
+function status(s){$('status').textContent=s}
+function progress(d,t){let p=t?Math.round(d/t*100):0;$('bar').value=p;$('pct').textContent=p+'%';$('counter').textContent=`${d} / ${t}`}
+function splitText(src){let t=src.replace(/\r\n?/g,'\n').trim();if(!t)return[];let h=[];const hold=x=>{let k=`ZZHOLD${h.length}ZZ`;h.push(x);return k};t=t.replace(/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|vs|etc|e\.g|i\.e)\./gi,x=>hold(x));t=t.replace(/(\d)\.(\d)/g,(_,a,b)=>a+hold('.')+b);return t.split(/(?<=[.!?])["'”’)\]]*\s+|\n+/).map(x=>x.trim()).filter(Boolean).map(x=>x.replace(/ZZHOLD(\d+)ZZ/g,(_,n)=>h[+n]))}
+function draw(){$('output').textContent=rows.length?rows.map(r=>r.en+'\n'+r.ko).join('\n\n'):'결과가 여기에 표시됩니다.';$('copy').disabled=$('save').disabled=!rows.length}
+async function loadModel(){if(pipe)return pipe;status('GitHub의 로컬 AI 모델 확인 중…');const {pipeline,env}=await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1');env.allowLocalModels=true;env.allowRemoteModels=false;env.localModelPath='./models/';env.useBrowserCache=true;env.backends.onnx.wasm.numThreads=1;pipe=await pipeline('translation',MODEL,{dtype:'q8',progress_callback:p=>{if(p.status)status('모델 준비: '+p.status)}});return pipe}
+async function translate(text){let p=await loadModel();let r=await p(text,{src_lang:'eng_Latn',tgt_lang:'kor_Hang',max_new_tokens:512});return r?.[0]?.translation_text||''}
+async function waitPause(){while(paused&&!stopped)await new Promise(r=>setTimeout(r,150))}
+async function start(){if(busy)return;let list=splitText($('input').value);if(!list.length){status('영어 텍스트를 입력하세요.');return}rows=[];draw();progress(0,list.length);busy=true;paused=false;stopped=false;$('start').disabled=true;$('pause').disabled=false;$('stop').disabled=false;
+try{await loadModel();let n=Number($('batch').value);for(let i=0;i<list.length;i+=n){await waitPause();if(stopped)break;for(let en of list.slice(i,i+n)){await waitPause();if(stopped)break;status(`번역 중: ${rows.length+1} / ${list.length}`);let ko=await translate(en);rows.push({en,ko});draw();progress(rows.length,list.length);await new Promise(r=>setTimeout(r,0))}if(stopped)break}status(stopped?`중단됨 · ${rows.length}문장 완료`:'번역 완료')}
+catch(e){console.error(e);status('오류: '+(e.message||e)+' · 모델 파일 경로와 구성을 확인하세요.')}finally{busy=false;paused=false;$('start').disabled=false;$('pause').disabled=true;$('stop').disabled=true;$('pause').textContent='일시정지'}}
+$('start').onclick=start;$('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'재개':'일시정지';status(paused?'일시정지됨':'번역 재개 중')};$('stop').onclick=()=>{stopped=true;paused=false;status('중단 요청됨')};
+$('input').oninput=()=>$('chars').textContent=$('input').value.length.toLocaleString()+'자';$('clear').onclick=()=>{$('input').value='';$('chars').textContent='0자'};
+$('file').onchange=async e=>{let f=e.target.files[0];if(f){$('input').value=await f.text();$('chars').textContent=$('input').value.length.toLocaleString()+'자'}e.target.value=''};
+$('copy').onclick=async()=>{await navigator.clipboard.writeText(rows.map(r=>r.en+'\n'+r.ko).join('\n\n'));status('전체 결과 복사 완료')};
+$('save').onclick=()=>{let b=new Blob([rows.map(r=>r.en+'\n'+r.ko).join('\n\n')],{type:'text/plain;charset=utf-8'});let u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='translation-result.txt';a.click();URL.revokeObjectURL(u)};
+</script></body></html>

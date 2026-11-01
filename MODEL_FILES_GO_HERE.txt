@@ -1,0 +1,1 @@
+여기에 Transformers.js 호환 NLLB 모델 파일 전체를 넣어야 합니다. 자세한 내용은 저장소 최상위 README-KO.md를 확인하세요.
