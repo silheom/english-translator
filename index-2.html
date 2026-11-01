@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>문장별 영어 번역기</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body { background: #0b1020; }
+    textarea, select, input { color-scheme: dark; }
+    .panel { background: rgba(17, 24, 39, .88); border: 1px solid rgba(148,163,184,.16); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    progress { width: 100%; height: 10px; accent-color: #818cf8; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100">
+  <main class="mx-auto max-w-7xl px-4 py-7 sm:px-6 lg:px-8">
+    <header class="mb-7">
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-500/20 text-xl">文</div>
+        <div>
+          <h1 class="text-2xl font-bold tracking-tight sm:text-3xl">문장별 영어 번역기</h1>
+          <p class="mt-1 text-sm text-slate-400">대용량 텍스트를 문장 단위로 나누고 영어 원문과 한국어 번역을 정리합니다.</p>
+        </div>
+        <span class="ml-auto rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-300">GitHub Pages 지원</span>
+      </div>
+    </header>
+
+    <div class="grid gap-5 lg:grid-cols-2">
+      <section class="panel rounded-2xl p-4 shadow-xl sm:p-5">
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h2 class="font-semibold">1. 영어 원문 입력</h2>
+          <label class="cursor-pointer rounded-lg border border-slate-600 px-3 py-2 text-xs hover:bg-slate-700">
+            .txt 파일 열기
+            <input id="fileInput" type="file" accept=".txt,text/plain" class="hidden">
+          </label>
+        </div>
+        <textarea id="sourceText" class="h-72 w-full resize-y rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-sm leading-6 outline-none placeholder:text-slate-600 focus:border-indigo-400" placeholder="영어 텍스트를 붙여넣으세요.&#10;&#10;여러 문단의 긴 텍스트도 입력할 수 있습니다."></textarea>
+        <div class="mt-2 flex justify-between text-xs text-slate-500">
+          <span id="inputStats">0자</span><button id="clearInput" class="hover:text-white">입력 지우기</button>
+        </div>
+
+        <div class="mt-5 border-t border-slate-700/70 pt-4">
+          <h2 class="mb-3 font-semibold">2. 번역 설정</h2>
+          <label class="mb-2 block text-xs text-slate-400" for="engine">번역 엔진</label>
+          <select id="engine" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm outline-none focus:border-indigo-400">
+            <option value="local">무료 로컬 AI (브라우저에서 실행)</option>
+            <option value="google">Google Cloud Translation API (API 키 필요)</option>
+            <option value="deepl">DeepL API (인증 키 필요)</option>
+          </select>
+          <div id="localSettings" class="mt-3 rounded-xl bg-slate-950/60 p-3 text-sm">
+            <div class="font-medium text-indigo-200">로컬 AI 모델</div>
+            <p class="mt-1 text-xs leading-5 text-slate-400">Xenova/nllb-200-distilled-600M · 다국어 번역 모델 파일은 최초 실행 시 브라우저로 다운로드됩니다. 다운로드 용량과 속도는 네트워크 및 기기에 따라 달라집니다.</p>
+            <label class="mt-3 flex items-center gap-2 text-xs text-slate-300"><input id="lowMemory" type="checkbox" class="accent-indigo-500"> 메모리 절약 모드 (배치 크기 축소)</label>
+          </div>
+          <div id="apiSettings" class="mt-3 hidden rounded-xl bg-slate-950/60 p-3">
+            <label id="apiKeyLabel" for="apiKey" class="mb-2 block text-xs text-slate-400">API 키</label>
+            <input id="apiKey" type="password" autocomplete="off" placeholder="API 키 입력" class="w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm outline-none focus:border-indigo-400">
+            <p id="apiWarning" class="mt-2 text-xs leading-5 text-amber-300">주의: 브라우저에 입력한 API 키는 이 기기에서 요청에 사용됩니다. 공유 PC에서는 사용하지 말고, GitHub 저장소에 키를 입력하거나 코드에 넣지 마세요.</p>
+          </div>
+          <div class="mt-4 grid grid-cols-2 gap-3">
+            <div>
+              <label for="batchSize" class="mb-2 block text-xs text-slate-400">배치 크기</label>
+              <select id="batchSize" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2.5 text-sm">
+                <option value="1">1문장</option><option value="3">3문장</option><option value="5" selected>5문장</option><option value="10">10문장</option>
+              </select>
+            </div>
+            <div>
+              <label for="maxLength" class="mb-2 block text-xs text-slate-400">문장 최대 길이</label>
+              <select id="maxLength" class="w-full rounded-lg border border-slate-700 bg-slate-950 p-2.5 text-sm">
+                <option value="400">400자</option><option value="800" selected>800자</option><option value="1200">1200자</option>
+              </select>
+            </div>
+          </div>
+          <p class="mt-2 text-xs leading-5 text-slate-500">긴 문장은 번역 모델의 입력 한도를 고려해 나누어 처리합니다. 문장 분할은 약어·소수점 등 일부 예외에서 완벽하지 않을 수 있습니다.</p>
+        </div>
+
+        <div class="mt-5 flex flex-wrap gap-2">
+          <button id="startBtn" class="flex-1 rounded-xl bg-indigo-500 px-4 py-3 text-sm font-semibold hover:bg-indigo-400">번역 시작</button>
+          <button id="pauseBtn" disabled class="rounded-xl border border-slate-600 px-4 py-3 text-sm hover:bg-slate-700">일시정지</button>
+          <button id="stopBtn" disabled class="rounded-xl border border-rose-500/40 px-4 py-3 text-sm text-rose-300 hover:bg-rose-500/10">중단</button>
+        </div>
+      </section>
+
+      <section class="panel rounded-2xl p-4 shadow-xl sm:p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="font-semibold">3. 번역 결과</h2>
+          <div class="flex gap-2">
+            <button id="copyBtn" disabled class="rounded-lg border border-slate-600 px-3 py-2 text-xs hover:bg-slate-700">전체 복사</button>
+            <button id="downloadBtn" disabled class="rounded-lg border border-slate-600 px-3 py-2 text-xs hover:bg-slate-700">텍스트 저장</button>
+          </div>
+        </div>
+        <div class="mt-4 rounded-xl bg-slate-950/70 p-3">
+          <div class="mb-2 flex items-center justify-between text-xs">
+            <span id="status" class="text-slate-400">대기 중</span>
+            <span id="count" class="tabular-nums text-slate-300">0 / 0문장</span>
+          </div>
+          <progress id="progress" value="0" max="100"></progress>
+          <div class="mt-2 flex justify-between text-[11px] text-slate-500"><span id="percent">0%</span><span id="modelStatus">모델 미실행</span></div>
+        </div>
+        <div id="result" aria-live="polite" class="mono mt-4 h-[470px] overflow-auto whitespace-pre-wrap break-words rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-sm leading-7 text-slate-200">번역 결과가 여기에 표시됩니다.</div>
+        <p class="mt-3 text-xs leading-5 text-slate-500">결과 형식: 영어 원문 → 줄바꿈 → 한국어 번역 → 빈 줄 → 다음 문장</p>
+      </section>
+    </div>
+
+    <footer class="mt-6 rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-xs leading-6 text-slate-500">
+      <strong class="text-slate-300">사용 안내</strong><br>
+      로컬 AI는 서버로 원문을 전송하지 않고 브라우저에서 번역합니다. 다만 모델 파일을 받기 위해 최초 실행 시 인터넷 연결이 필요합니다. Google/DeepL 모드는 각 서비스로 텍스트를 전송합니다. API 키를 브라우저에서 직접 사용하는 방식은 키 노출 위험이 있으므로 개인 테스트용으로만 사용하세요. 안정적인 공개 서비스라면 별도 백엔드 프록시가 필요합니다.
+    </footer>
+  </main>
+
+<script type="module">
+  const $ = id => document.getElementById(id);
+  const MODEL_ID = 'Xenova/nllb-200-distilled-600M';
+  let translator = null;
+  let running = false, paused = false, stopped = false;
+  let results = [];
+  let sentences = [];
+
+  function setStatus(message) { $('status').textContent = message; }
+  function setProgress(done, total) {
+    const pct = total ? Math.round(done / total * 100) : 0;
+    $('progress').value = pct; $('percent').textContent = pct + '%';
+    $('count').textContent = `${done} / ${total}문장`;
+  }
+  function refreshStats() { $('inputStats').textContent = `${$('sourceText').value.length.toLocaleString()}자`; }
+  function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  // Split at sentence-ending punctuation, newlines and paragraph boundaries.
+  // Common abbreviations and decimal points are protected before splitting.
+  function splitSentences(text) {
+    let t = text.replace(/\r\n?/g, '\n').trim();
+    if (!t) return [];
+    const protectedTokens = [];
+    const protect = value => {
+      const token = `¤P${protectedTokens.length}¤`;
+      protectedTokens.push(value);
+      return token;
+    };
+    t = t.replace(/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|vs|etc|e\.g|i\.e)\./gi, m => protect(m));
+    t = t.replace(/(\d)\.(\d)/g, (_, a, b) => `${a}${protect('.')}${b}`);
+    // Keep common initials together.
+    t = t.replace(/\b([A-Z])\.(?=\s*[A-Z]\.)/g, (_, a) => `${a}${protect('.')}`);
+    const chunks = t.split(/(?<=[.!?])(?:["'”’)\]]*)\s+|\n+/g);
+    return chunks.map(s => s.trim()).filter(Boolean).map(s => {
+      return s.replace(/¤P(\d+)¤/g, (_, n) => protectedTokens[Number(n)]);
+    });
+  }
+
+  function splitLongSentence(sentence, maxLen) {
+    if (sentence.length <= maxLen) return [sentence];
+    const parts = sentence.match(new RegExp(`.{1,${maxLen}}(?:\\\\s|$)|.{1,${maxLen}}`, 'g')) || [sentence];
+    return parts.map(p => p.trim()).filter(Boolean);
+  }
+
+  function renderResults() {
+    $('result').textContent = results.length
+      ? results.map(x => `${x.en}\n${x.ko}`).join('\n\n')
+      : '번역 결과가 여기에 표시됩니다.';
+    $('copyBtn').disabled = results.length === 0;
+    $('downloadBtn').disabled = results.length === 0;
+  }
+
+  async function loadLocalModel() {
+    if (translator) return translator;
+    setStatus('AI 모델을 불러오는 중…');
+    $('modelStatus').textContent = '모델 다운로드/초기화 중';
+    const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+    env.allowLocalModels = false;
+    env.useBrowserCache = true;
+    translator = await pipeline('translation', MODEL_ID, {
+      progress_callback: p => {
+        if (p.status) $('modelStatus').textContent = p.status;
+        if (p.file && p.progress != null) $('modelStatus').textContent = `${p.file}: ${Math.round(p.progress)}%`;
+      }
+    });
+    $('modelStatus').textContent = '모델 준비 완료';
+    return translator;
+  }
+
+  async function translateLocal(batch) {
+    const model = await loadLocalModel();
+    const output = [];
+    // Process one at a time for predictable memory use; outer batches keep UI responsive.
+    for (const sentence of batch) {
+      const r = await model(sentence, { src_lang: 'eng_Latn', tgt_lang: 'kor_Hang', max_new_tokens: 512 });
+      output.push(Array.isArray(r) ? (r[0]?.translation_text || '') : (r.translation_text || ''));
+    }
+    return output;
+  }
+
+  async function translateGoogle(batch) {
+    const key = $('apiKey').value.trim();
+    if (!key) throw new Error('Google API 키를 입력하세요.');
+    const url = `https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(key)}`;
+    const response = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: batch, source: 'en', target: 'ko', format: 'text' })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message || 'Google 번역 요청 실패');
+    return data.data.translations.map(x => x.translatedText);
+  }
+
+  async function translateDeepL(batch) {
+    const key = $('apiKey').value.trim();
+    if (!key) throw new Error('DeepL 인증 키를 입력하세요.');
+    // Browser CORS policies may block direct calls; use a secure proxy for production.
+    const endpoint = key.endsWith(':fx')
+      ? 'https://api-free.deepl.com/v2/translate'
+      : 'https://api.deepl.com/v2/translate';
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Authorization': `DeepL-Auth-Key ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: batch, source_lang: 'EN', target_lang: 'KO' })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || 'DeepL 요청 실패 (브라우저 CORS 제한일 수 있습니다)');
+    return data.translations.map(x => x.text);
+  }
+
+  function waitWhilePaused() {
+    return new Promise(resolve => {
+      const check = () => {
+        if (stopped || !paused) resolve();
+        else setTimeout(check, 200);
+      };
+      check();
+    });
+  }
+
+  async function start() {
+    if (running) return;
+    const raw = $('sourceText').value;
+    sentences = splitSentences(raw);
+    if (!sentences.length) { setStatus('영어 텍스트를 입력하세요.'); return; }
+
+    const maxLen = Number($('maxLength').value);
+    const expanded = sentences.flatMap(s => splitLongSentence(s, maxLen));
+    sentences = expanded;
+    results = [];
+    renderResults();
+    setProgress(0, sentences.length);
+    running = true; paused = false; stopped = false;
+    $('startBtn').disabled = true; $('pauseBtn').disabled = false; $('stopBtn').disabled = false;
+    $('pauseBtn').textContent = '일시정지';
+    const engine = $('engine').value;
+    const batchSize = $('lowMemory').checked ? 1 : Number($('batchSize').value);
+    setStatus('번역 준비 중…');
+
+    try {
+      for (let i = 0; i < sentences.length; i += batchSize) {
+        if (stopped) break;
+        await waitWhilePaused();
+        if (stopped) break;
+        const batch = sentences.slice(i, i + batchSize);
+        setStatus(`번역 중… ${Math.min(i + batch.length, sentences.length)}번째 문장`);
+        let translations;
+        if (engine === 'local') translations = await translateLocal(batch);
+        else if (engine === 'google') translations = await translateGoogle(batch);
+        else translations = await translateDeepL(batch);
+
+        batch.forEach((en, j) => results.push({ en, ko: translations[j] || '[번역 결과 없음]' }));
+        renderResults();
+        setProgress(results.length, sentences.length);
+        // Yield to the browser between batches so controls and rendering remain responsive.
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+      if (stopped) setStatus(`중단됨 · ${results.length}문장까지 완료`);
+      else setStatus('번역 완료');
+    } catch (err) {
+      console.error(err);
+      setStatus(`오류: ${err.message || err}`);
+    } finally {
+      running = false; paused = false;
+      $('startBtn').disabled = false; $('pauseBtn').disabled = true; $('stopBtn').disabled = true;
+      $('pauseBtn').textContent = '일시정지';
+    }
+  }
+
+  $('startBtn').addEventListener('click', start);
+  $('pauseBtn').addEventListener('click', () => {
+    if (!running) return;
+    paused = !paused;
+    $('pauseBtn').textContent = paused ? '재개' : '일시정지';
+    setStatus(paused ? '일시정지됨' : '번역 재개 중…');
+  });
+  $('stopBtn').addEventListener('click', () => { stopped = true; paused = false; setStatus('중단 요청됨…'); });
+  $('sourceText').addEventListener('input', refreshStats);
+  $('clearInput').addEventListener('click', () => { $('sourceText').value = ''; refreshStats(); });
+  $('fileInput').addEventListener('change', async e => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    $('sourceText').value = await file.text();
+    refreshStats(); e.target.value = '';
+  });
+  $('engine').addEventListener('change', () => {
+    const local = $('engine').value === 'local';
+    $('localSettings').classList.toggle('hidden', !local);
+    $('apiSettings').classList.toggle('hidden', local);
+    $('apiKeyLabel').textContent = $('engine').value === 'google' ? 'Google Cloud Translation API 키' : 'DeepL 인증 키';
+    $('apiKey').placeholder = $('engine').value === 'google' ? 'Google API 키 입력' : 'DeepL-Auth-Key 입력';
+    $('apiWarning').textContent = $('engine').value === 'deepl'
+      ? '주의: DeepL은 브라우저 직접 요청이 CORS 정책에 의해 차단될 수 있습니다. 공개 배포 시 서버 프록시를 권장합니다. 키를 저장소에 올리지 마세요.'
+      : '주의: 브라우저에 입력한 API 키는 이 기기에서 요청에 사용됩니다. 공유 PC에서는 사용하지 말고, GitHub 저장소에 키를 입력하거나 코드에 넣지 마세요.';
+  });
+  $('copyBtn').addEventListener('click', async () => {
+    const text = results.map(x => `${x.en}\n${x.ko}`).join('\n\n');
+    try { await navigator.clipboard.writeText(text); setStatus('전체 결과를 복사했습니다.'); }
+    catch { setStatus('복사 권한이 없습니다. 결과 영역을 선택해 복사하세요.'); }
+  });
+  $('downloadBtn').addEventListener('click', () => {
+    const text = results.map(x => `${x.en}\n${x.ko}`).join('\n\n');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'translation-result.txt'; a.click();
+    URL.revokeObjectURL(url);
+  });
+  refreshStats();
+</script>
+</body>
+</html>
